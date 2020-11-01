@@ -1,0 +1,14 @@
+[package]
+name = "memflow-reclass-plugin"
+version = "0.1.0"
+authors = ["patrick"]
+edition = "2018"
+
+[lib]
+name = "memflow_reclass_plugin"
+crate-type = ["cdylib"]
+
+[dependencies]
+memflow = "0.1"
+memflow-win32 = "0.1"
+gtk = "0.9"
