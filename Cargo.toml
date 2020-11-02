@@ -9,6 +9,6 @@ name = "memflow_reclass_plugin"
 crate-type = ["cdylib"]
 
 [dependencies]
-memflow = "0.1"
-memflow-win32 = "0.1"
+memflow = { path = "../memflow/memflow" }
+memflow-win32 = { path = "../memflow/memflow-win32" }
 gtk = "0.9"

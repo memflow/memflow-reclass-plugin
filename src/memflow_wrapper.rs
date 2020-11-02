@@ -43,10 +43,7 @@ impl Memflow {
                 &ConnectorArgs::parse("unix:/var/run/memflow.sock,id=win10").unwrap(),
             )*/
 
-            inventory.create_connector(
-                "qemu_procfs",
-                &ConnectorArgs::default(),
-            )
+            inventory.create_connector("qemu_procfs", &ConnectorArgs::default())
         }?;
 
         let kernel = Kernel::builder(connector).build_default_caches().build()?;

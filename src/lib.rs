@@ -16,32 +16,16 @@ pub extern "C" fn EnumerateProcesses(callback: EnumerateProcessCallback) {
     if let Ok(mut memflow) = unsafe { lock_memflow() } {
         if let Ok(proc_list) = memflow.kernel.process_info_list() {
             for proc_info in proc_list.iter() {
-                let mut proc = Win32Process::with_kernel_ref(&mut memflow.kernel, proc_info.to_owned());
-
-                // TODO: replace by new main_module_info() function
-                if let Ok(module_list) = proc.module_list() {
-                    if let Ok(module) = module_list
-                        .into_iter()
-                        .find(|module| {
-                            module.name()[..module.name().len().min(IMAGE_FILE_NAME_LENGTH - 1)]
-                                .to_lowercase()
-                                == proc_info.name.to_lowercase()
-                        })
-                        .ok_or_else(|| Error::ModuleInfo)
-                    {
-                        let mut proc_data = EnumerateProcessData::new(proc_info.pid as usize);
-                        let name = module.name.encode_utf16().collect::<Vec<u16>>();
-                        unsafe {
-                            if name.len() >= MAX_PATH {
-                                proc_data.name.copy_from_slice(&name[..MAX_PATH]);
-                                proc_data.path.copy_from_slice(&name[..MAX_PATH]);
-                            } else {
-                                proc_data.name[..name.len()].copy_from_slice(&name[..]);
-                                proc_data.path[..name.len()].copy_from_slice(&name[..]);
-                            }
-
-                            (callback)(&mut proc_data)
-                        }
+                let mut proc =
+                    Win32Process::with_kernel_ref(&mut memflow.kernel, proc_info.to_owned());
+                if let Ok(main_module) = proc.main_module_info() {
+                    let mut proc_data = EnumerateProcessData::new(proc_info.pid as usize);
+                    let path = main_module.path.encode_utf16().collect::<Vec<u16>>();
+                    let name = main_module.name.encode_utf16().collect::<Vec<u16>>();
+                    unsafe {
+                        proc_data.name[..name.len().min(MAX_PATH)].copy_from_slice(&name[..name.len().min(MAX_PATH)]);
+                        proc_data.path[..path.len().min(MAX_PATH)].copy_from_slice(&path[..path.len().min(MAX_PATH)]);
+                        (callback)(&mut proc_data)
                     }
                 }
             }
