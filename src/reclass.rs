@@ -7,11 +7,21 @@ pub type ProcessHandle = *mut c_void;
 
 #[repr(C, packed)]
 pub struct EnumerateProcessData {
-    id: ProcessId,
-    name: [u16; MAX_PATH],
-    path: [u16; MAX_PATH],
+    pub pid: ProcessId,
+    pub name: [u16; MAX_PATH],
+    pub path: [u16; MAX_PATH],
 }
 const _: [(); std::mem::size_of::<EnumerateProcessData>()] = [(); 0x418];
+
+impl EnumerateProcessData {
+    pub fn new(pid: ProcessId) -> Self {
+        Self {
+            pid,
+            name: [0u16; MAX_PATH],
+            path: [0u16; MAX_PATH],
+        }
+    }
+}
 
 #[repr(C, packed)]
 pub struct EnumerateRemoteSectionData {

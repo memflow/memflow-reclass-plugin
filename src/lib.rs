@@ -6,30 +6,47 @@ use memflow_wrapper::*;
 
 use std::ffi::c_void;
 use std::ptr;
-use std::sync::{Arc, Mutex};
 
-use gtk::prelude::*;
-use gtk::{ButtonsType, DialogFlags, MessageDialog, MessageType, Window};
-
-static mut MEMFLOW_INSTANCE: Option<Arc<Mutex<Memflow>>> = None;
+use memflow::*;
+use memflow_win32::error::{Error, Result};
+use memflow_win32::*;
 
 #[no_mangle]
 pub extern "C" fn EnumerateProcesses(callback: EnumerateProcessCallback) {
-    // fancy test
-    std::thread::spawn(move || {
-        if gtk::init().is_err() {
-            println!("Failed to initialize GTK.");
-            return;
+    if let Ok(mut memflow) = unsafe { lock_memflow() } {
+        if let Ok(proc_list) = memflow.kernel.process_info_list() {
+            for proc_info in proc_list.iter() {
+                let mut proc = Win32Process::with_kernel_ref(&mut memflow.kernel, proc_info.to_owned());
+
+                // TODO: replace by new main_module_info() function
+                if let Ok(module_list) = proc.module_list() {
+                    if let Ok(module) = module_list
+                        .into_iter()
+                        .find(|module| {
+                            module.name()[..module.name().len().min(IMAGE_FILE_NAME_LENGTH - 1)]
+                                .to_lowercase()
+                                == proc_info.name.to_lowercase()
+                        })
+                        .ok_or_else(|| Error::ModuleInfo)
+                    {
+                        let mut proc_data = EnumerateProcessData::new(proc_info.pid as usize);
+                        let name = module.name.encode_utf16().collect::<Vec<u16>>();
+                        unsafe {
+                            if name.len() >= MAX_PATH {
+                                proc_data.name.copy_from_slice(&name[..MAX_PATH]);
+                                proc_data.path.copy_from_slice(&name[..MAX_PATH]);
+                            } else {
+                                proc_data.name[..name.len()].copy_from_slice(&name[..]);
+                                proc_data.path[..name.len()].copy_from_slice(&name[..]);
+                            }
+
+                            (callback)(&mut proc_data)
+                        }
+                    }
+                }
+            }
         }
-        MessageDialog::new(
-            None::<&Window>,
-            DialogFlags::empty(),
-            MessageType::Info,
-            ButtonsType::Ok,
-            "Hello World",
-        )
-        .run();
-    });
+    }
 }
 
 #[no_mangle]
