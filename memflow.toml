@@ -1,0 +1,3 @@
+connector = "qemu_procfs"
+args = ""
+parse_sections = true

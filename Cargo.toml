@@ -1,14 +1,25 @@
 [package]
 name = "memflow-reclass-plugin"
 version = "0.1.0"
-authors = ["patrick"]
+authors = ["ko1N <ko1N1337@gmail.com>"]
 edition = "2018"
+description = "ReClass.NET plugin for the memflow physical memory introspection framework"
+documentation = "https://docs.rs/memflow-reclass-plugin"
+readme = "README.md"
+homepage = "https://memflow.github.io"
+repository = "https://github.com/memflow/memflow-reclass-plugin"
+license-file = "LICENSE"
+keywords = [ "memflow", "introspection", "memory", "dma", "reclass" ]
+categories = [ "memory-management", "os" ]
 
 [lib]
-name = "memflow_reclass_plugin"
+name = "memflow_reclass"
 crate-type = ["cdylib"]
 
 [dependencies]
-memflow = { path = "../memflow/memflow" }
-memflow-win32 = { path = "../memflow/memflow-win32" }
-gtk = "0.9"
+simple_logger = "1.0.1"
+log = "0.4.8"
+memflow = { git = "https://github.com/memflow/memflow", branch = "dev" }
+memflow-win32 = { git = "https://github.com/memflow/memflow", branch = "dev" }
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.5"

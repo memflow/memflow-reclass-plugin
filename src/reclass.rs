@@ -14,11 +14,21 @@ pub struct EnumerateProcessData {
 const _: [(); std::mem::size_of::<EnumerateProcessData>()] = [(); 0x418];
 
 impl EnumerateProcessData {
-    pub fn new(pid: ProcessId) -> Self {
+    pub fn new(pid: ProcessId, name: &str, path: &str) -> Self {
+        let name16 = name.encode_utf16().collect::<Vec<u16>>();
+        let mut namebuf = [0u16; MAX_PATH];
+        namebuf[..name16.len().min(MAX_PATH)]
+            .copy_from_slice(&name16[..name16.len().min(MAX_PATH)]);
+
+        let path16 = path.encode_utf16().collect::<Vec<u16>>();
+        let mut pathbuf = [0u16; MAX_PATH];
+        pathbuf[..path16.len().min(MAX_PATH)]
+            .copy_from_slice(&path16[..path16.len().min(MAX_PATH)]);
+
         Self {
             pid,
-            name: [0u16; MAX_PATH],
-            path: [0u16; MAX_PATH],
+            name: namebuf,
+            path: pathbuf,
         }
     }
 }
@@ -35,6 +45,20 @@ pub struct EnumerateRemoteSectionData {
 }
 const _: [(); std::mem::size_of::<EnumerateRemoteSectionData>()] = [(); 0x244];
 
+impl EnumerateRemoteSectionData {
+    pub fn new(base_address: *mut c_void, size: usize) -> Self {
+        Self {
+            base_address,
+            size,
+            ty: 0,             // Unknown
+            category: 0,       // Unknown
+            protection: 1 | 2, // Read Write
+            name: [0u16; 16],
+            module_path: [0u16; MAX_PATH],
+        }
+    }
+}
+
 #[repr(C, packed)]
 pub struct EnumerateRemoteModuleData {
     base_address: *mut c_void,
@@ -42,6 +66,21 @@ pub struct EnumerateRemoteModuleData {
     path: [u16; MAX_PATH],
 }
 const _: [(); std::mem::size_of::<EnumerateRemoteModuleData>()] = [(); 0x218];
+
+impl EnumerateRemoteModuleData {
+    pub fn new(base_address: *mut c_void, size: usize, path: &str) -> Self {
+        let path16 = path.encode_utf16().collect::<Vec<u16>>();
+        let mut pathbuf = [0u16; MAX_PATH];
+        pathbuf[..path16.len().min(MAX_PATH)]
+            .copy_from_slice(&path16[..path16.len().min(MAX_PATH)]);
+
+        Self {
+            base_address,
+            size,
+            path: pathbuf,
+        }
+    }
+}
 
 pub type EnumerateProcessCallback = extern "C" fn(*mut EnumerateProcessData);
 pub type EnumerateRemoteSectionsCallback = extern "C" fn(*mut EnumerateRemoteSectionData);
