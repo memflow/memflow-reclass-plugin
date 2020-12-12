@@ -1,4 +1,7 @@
-use crate::settings::{Config, Settings};
+use crate::gui::{
+    alert,
+    settings::{Config, Settings},
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -23,7 +26,19 @@ static mut MEMFLOW_INSTANCE: Option<Arc<Mutex<Memflow>>> = None;
 
 pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
     if MEMFLOW_INSTANCE.is_none() {
-        MEMFLOW_INSTANCE = Some(Arc::new(Mutex::new(Memflow::try_init()?)));
+        match Memflow::try_init() {
+            Ok(memflow) => {
+                MEMFLOW_INSTANCE = Some(Arc::new(Mutex::new(memflow)));
+            }
+            Err(err) => {
+                alert::show_error(
+                    "Unable to load memflow",
+                    "Memflow failed to initialize some of its components.",
+                    err,
+                );
+                return Err(Error::Other("unable to initialize memflow"));
+            }
+        };
     }
 
     if let Some(memflow) = MEMFLOW_INSTANCE.as_ref() {
@@ -54,7 +69,13 @@ impl Memflow {
         // load config file
         let mut settings = Settings::new();
         settings.configure();
-        settings.persist().ok();
+        if let Err(err) = settings.persist() {
+            alert::show_error(
+                "Unable to save settings",
+                "The configuration file could not be written.",
+                err,
+            );
+        }
         let config = settings.config();
 
         // load connector

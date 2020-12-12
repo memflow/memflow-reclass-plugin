@@ -1,8 +1,9 @@
+use super::support;
+
 use imgui::*;
 use memflow::*;
+use memflow_win32::error::Result;
 use serde::{Deserialize, Serialize};
-
-mod support;
 
 // see https://github.com/serde-rs/serde/issues/368
 #[allow(unused)]
@@ -39,10 +40,7 @@ pub struct Settings {
 impl Settings {
     /// Loads the current config from the {PWD}/Plugins/memflow.toml file.
     pub fn new() -> Self {
-        // TODO: handle config not being able to load with default settings
-
         // load config file
-        // TODO: error dialog + log dialog?
         let pwd = std::env::current_dir().expect("unable to get pwd");
         let config = if let Ok(configstr) =
             std::fs::read_to_string(pwd.join("Plugins").join("memflow.toml"))
@@ -90,8 +88,7 @@ impl Settings {
         let mut parse_sections = self.config.parse_sections;
 
         {
-            let system = support::init("memflow", 400.0, 265.0);
-            system.run(|run, ui| {
+            support::show_window("memflow", 400.0, 265.0, |run, ui| {
                 let connectors_ref: Vec<&ImStr> =
                     connectors.iter().map(|c| c.as_ref()).collect::<Vec<_>>();
 

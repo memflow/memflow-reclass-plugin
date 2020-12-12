@@ -4,7 +4,7 @@ use reclass::*;
 mod memflow_wrapper;
 use memflow_wrapper::*;
 
-mod settings;
+mod gui;
 
 use std::ffi::c_void;
 use std::ptr;
