@@ -1,3 +1,4 @@
+use crate::settings::{Config, Settings};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -6,8 +7,6 @@ use log::Level;
 use memflow::*;
 use memflow_win32::error::{Error, Result};
 use memflow_win32::*;
-
-use serde::Deserialize;
 
 pub type CachedConnectorInstance =
     CachedMemoryAccess<'static, ConnectorInstance, TimedCacheValidator>;
@@ -38,23 +37,6 @@ pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
     }
 }
 
-// see https://github.com/serde-rs/serde/issues/368
-#[allow(unused)]
-fn default_as_true() -> bool {
-    true
-}
-
-#[derive(Deserialize)]
-pub struct Config {
-    pub connector: String,
-    #[serde(default)]
-    pub args: String,
-
-    // TODO: expose caching options (lifetimes, etc)
-    #[serde(default = "default_as_true")]
-    pub parse_sections: bool,
-}
-
 pub struct Memflow {
     pub config: Config,
     pub kernel: CachedWin32Kernel,
@@ -67,14 +49,13 @@ impl Memflow {
         simple_logger::SimpleLogger::new()
             .with_level(Level::Debug.to_level_filter())
             .init()
-            .unwrap();
+            .ok();
 
         // load config file
-        let pwd = std::env::current_dir().map_err(|_| Error::Other("unable to get pwd"))?;
-        let configstr = std::fs::read_to_string(pwd.join("Plugins").join("memflow.toml"))
-            .map_err(|_| Error::Other("unable to open configuration file"))?;
-        let config: Config = toml::from_str(&configstr)
-            .map_err(|_| Error::Other("unable to parse configuration file"))?;
+        let mut settings = Settings::new();
+        settings.configure();
+        settings.persist().ok();
+        let config = settings.config();
 
         // load connector
         let inventory = unsafe { ConnectorInventory::scan() };
