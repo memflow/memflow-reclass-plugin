@@ -9,8 +9,6 @@ use imgui_glium_renderer::Renderer;
 use imgui_winit_support::{HiDpiMode, WinitPlatform};
 use std::time::Instant;
 
-mod clipboard;
-
 const CLEAR_COLOR: [f32; 4] = [0.25, 0.25, 0.25, 1.0];
 
 pub fn show_window<F: FnMut(&mut bool, &mut Ui)>(
@@ -84,12 +82,6 @@ pub fn show_window<F: FnMut(&mut bool, &mut Ui)>(
         style.colors[imgui::StyleColor::NavHighlight as usize] = [0.26, 0.59, 0.98, 1.00];
         style.colors[imgui::StyleColor::NavWindowingHighlight as usize] = [1.00, 1.00, 1.00, 0.70];
         style.colors[imgui::StyleColor::NavWindowingDimBg as usize] = [0.80, 0.80, 0.80, 0.20];
-    }
-
-    if let Some(backend) = clipboard::init() {
-        imgui.set_clipboard_backend(Box::new(backend));
-    } else {
-        eprintln!("Failed to initialize clipboard");
     }
 
     let mut platform = WinitPlatform::init(&mut imgui);
