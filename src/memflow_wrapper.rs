@@ -33,7 +33,7 @@ pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
             Err(err) => {
                 alert::show_error(
                     "Unable to load memflow",
-                    "Memflow failed to initialize some of its components.",
+                    "Memflow failed to initialize some of its components",
                     err,
                 );
                 return Err(Error::Other("unable to initialize memflow"));
@@ -72,7 +72,7 @@ impl Memflow {
         if let Err(err) = settings.persist() {
             alert::show_error(
                 "Unable to save settings",
-                "The configuration file could not be written.",
+                "The configuration file could not be written",
                 err,
             );
         }

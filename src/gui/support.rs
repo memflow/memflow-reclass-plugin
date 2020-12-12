@@ -27,6 +27,7 @@ pub fn show_window<F: FnMut(&mut bool, &mut Ui)>(
         .with_title(title.to_owned())
         .with_inner_size(glutin::dpi::LogicalSize::new(width as f64, height as f64))
         .with_visible(true)
+        .with_always_on_top(true)
         .with_resizable(false);
     let display =
         Display::new(builder, context, &event_loop).expect("Failed to initialize display");
@@ -160,7 +161,12 @@ pub fn show_window<F: FnMut(&mut bool, &mut Ui)>(
         Event::WindowEvent {
             event: WindowEvent::CloseRequested,
             ..
-        } => *control_flow = ControlFlow::Exit,
+        } => {
+            let gl_window = display.gl_window();
+            let window = gl_window.window();
+            window.set_visible(false);
+            *control_flow = ControlFlow::Exit;
+        }
         event => {
             let gl_window = display.gl_window();
             platform.handle_event(imgui.io_mut(), gl_window.window(), &event);

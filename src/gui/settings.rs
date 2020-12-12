@@ -138,6 +138,12 @@ impl Settings {
                             // close window
                             *run = false;
                         }
+
+                        ui.same_line(64.0 + 16.0);
+
+                        if ui.button(im_str!("Cancel"), [64.0, 26.0]) {
+                            *run = false;
+                        }
                     });
             });
         }

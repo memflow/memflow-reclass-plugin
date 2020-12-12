@@ -8,15 +8,15 @@ pub fn show_error(title: &str, text: &str, error: Error) {
     if let Some(error_details) = error_str.1 {
         show_alert(
             title,
-            &format!("{}\n\n{}: {}", text, error_str.0, error_details),
+            &format!("{}:\n{}: {}", text, error_str.0, error_details),
         )
     } else {
-        show_alert(title, &format!("{}\n\n{}", text, error_str.0))
+        show_alert(title, &format!("{}:\n{}", text, error_str.0))
     }
 }
 
 pub fn show_alert(title: &str, text: &str) {
-    support::show_window(title, 400.0, 265.0, |run, ui| {
+    support::show_window(title, 400.0, 160.0, |run, ui| {
         Window::new(im_str!("Warning"))
             .position([10.0, 10.0], Condition::Always)
             .size([375.0, 1000.0], Condition::Always)
