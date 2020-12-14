@@ -1,3 +1,7 @@
+use crate::gui::{
+    alert,
+    settings::{Config, Settings},
+};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -6,8 +10,6 @@ use log::Level;
 use memflow::*;
 use memflow_win32::error::{Error, Result};
 use memflow_win32::*;
-
-use serde::Deserialize;
 
 pub type CachedConnectorInstance =
     CachedMemoryAccess<'static, ConnectorInstance, TimedCacheValidator>;
@@ -24,7 +26,19 @@ static mut MEMFLOW_INSTANCE: Option<Arc<Mutex<Memflow>>> = None;
 
 pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
     if MEMFLOW_INSTANCE.is_none() {
-        MEMFLOW_INSTANCE = Some(Arc::new(Mutex::new(Memflow::try_init()?)));
+        match Memflow::try_init() {
+            Ok(memflow) => {
+                MEMFLOW_INSTANCE = Some(Arc::new(Mutex::new(memflow)));
+            }
+            Err(err) => {
+                alert::show_error(
+                    "Unable to load memflow",
+                    "Memflow failed to initialize some of its components",
+                    err,
+                );
+                return Err(Error::Other("unable to initialize memflow"));
+            }
+        };
     }
 
     if let Some(memflow) = MEMFLOW_INSTANCE.as_ref() {
@@ -36,23 +50,6 @@ pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
     } else {
         Err(Error::Other("memflow is not properly initialized"))
     }
-}
-
-// see https://github.com/serde-rs/serde/issues/368
-#[allow(unused)]
-fn default_as_true() -> bool {
-    true
-}
-
-#[derive(Deserialize)]
-pub struct Config {
-    pub connector: String,
-    #[serde(default)]
-    pub args: String,
-
-    // TODO: expose caching options (lifetimes, etc)
-    #[serde(default = "default_as_true")]
-    pub parse_sections: bool,
 }
 
 pub struct Memflow {
@@ -67,14 +64,19 @@ impl Memflow {
         simple_logger::SimpleLogger::new()
             .with_level(Level::Debug.to_level_filter())
             .init()
-            .unwrap();
+            .ok();
 
         // load config file
-        let pwd = std::env::current_dir().map_err(|_| Error::Other("unable to get pwd"))?;
-        let configstr = std::fs::read_to_string(pwd.join("Plugins").join("memflow.toml"))
-            .map_err(|_| Error::Other("unable to open configuration file"))?;
-        let config: Config = toml::from_str(&configstr)
-            .map_err(|_| Error::Other("unable to parse configuration file"))?;
+        let mut settings = Settings::new();
+        settings.configure();
+        if let Err(err) = settings.persist() {
+            alert::show_error(
+                "Unable to save settings",
+                "The configuration file could not be written",
+                err,
+            );
+        }
+        let config = settings.config();
 
         // load connector
         let inventory = unsafe { ConnectorInventory::scan() };

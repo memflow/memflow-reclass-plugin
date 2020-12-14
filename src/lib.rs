@@ -4,6 +4,8 @@ use reclass::*;
 mod memflow_wrapper;
 use memflow_wrapper::*;
 
+mod gui;
+
 use std::ffi::c_void;
 use std::ptr;
 use std::slice;
