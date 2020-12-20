@@ -35,8 +35,7 @@ Depending on the Connector you use it might be useful to disable section parsing
 
 ## Remarks
 
-This plugin is still work in progress and currently builds against the "dev" branch of memflow until a new version is released.
-Some features might not yet work as expected.
+This plugin is still work in progress and some features might not yet work as expected.
 
 ## License
 
