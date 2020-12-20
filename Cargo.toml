@@ -25,8 +25,7 @@ serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
 
 # gui
-clipboard = "0.5"
-glium = "0.28"
-imgui = "0.6"
-imgui-glium-renderer = "0.6"
-imgui-winit-support = "0.6"
+glium = "0.29.0"
+imgui = "0.6.1"
+imgui-glium-renderer = "0.6.1"
+imgui-winit-support = "0.6.1"
