@@ -1,6 +1,6 @@
 [package]
 name = "memflow-reclass-plugin"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["ko1N <ko1N1337@gmail.com>"]
 edition = "2018"
 description = "ReClass.NET plugin for the memflow physical memory introspection framework"
@@ -11,10 +11,20 @@ repository = "https://github.com/memflow/memflow-reclass-plugin"
 license-file = "LICENSE"
 keywords = [ "memflow", "introspection", "memory", "dma", "reclass" ]
 categories = [ "memory-management", "os" ]
+build = "build.rs"
 
 [lib]
 name = "memflow_reclass"
 crate-type = ["cdylib"]
+
+[package.metadata.winres]
+FileDescription = "memflow"
+ProductName = "ReClass.NET Native Plugin"
+ProductVersion = "0.1.1"
+OriginalFilename = "memflow_reclass.dll"
+LegalCopyright = "Copyright © 2020-2021"
+Comments = "The memflow ReClass.NET connects to a Process running on a memflow target. See https://github.com/memflow/memflow for more about memflow."
+CompanyName = "ko1N, h33p"
 
 [dependencies]
 simple_logger = "1.0.1"
@@ -29,3 +39,6 @@ glium = "0.29.0"
 imgui = "0.6.1"
 imgui-glium-renderer = "0.6.1"
 imgui-winit-support = "0.6.1"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
