@@ -29,8 +29,7 @@ CompanyName = "ko1N, h33p"
 [dependencies]
 simple_logger = "1.0.1"
 log = "0.4.8"
-memflow = { version = "0.1" }
-memflow-win32 = { version = "0.1" }
+memflow = { git = "https://github.com/memflow/memflow", branch = "next", features = ["plugins"] }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
 

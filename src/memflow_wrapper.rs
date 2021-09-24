@@ -7,20 +7,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use log::Level;
 
-use memflow::*;
-use memflow_win32::error::{Error, Result};
-use memflow_win32::*;
-
-pub type CachedConnectorInstance =
-    CachedMemoryAccess<'static, ConnectorInstance, TimedCacheValidator>;
-
-pub type CachedTranslate = CachedVirtualTranslate<DirectTranslate, TimedCacheValidator>;
-
-pub type CachedWin32Kernel = memflow_win32::Kernel<CachedConnectorInstance, CachedTranslate>;
-
-pub type CachedWin32Process = memflow_win32::Win32Process<
-    VirtualDMA<CachedConnectorInstance, CachedTranslate, Win32VirtualTranslate>,
->;
+use memflow::prelude::v1::*;
 
 static mut MEMFLOW_INSTANCE: Option<Arc<Mutex<Memflow>>> = None;
 
@@ -36,7 +23,7 @@ pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
                     "Memflow failed to initialize some of its components",
                     err,
                 );
-                return Err(Error::Other("unable to initialize memflow"));
+                return Err(err.log_error("unable to initialize memflow"));
             }
         };
     }
@@ -45,17 +32,18 @@ pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
         if let Ok(memflow) = memflow.lock() {
             Ok(memflow)
         } else {
-            Err(Error::Other("unable to lock memflow"))
+            Err(Error(ErrorOrigin::Other, ErrorKind::NotFound).log_error("unable to lock memflow"))
         }
     } else {
-        Err(Error::Other("memflow is not properly initialized"))
+        Err(Error(ErrorOrigin::Other, ErrorKind::NotFound)
+            .log_error("memflow is not properly initialized"))
     }
 }
 
 pub struct Memflow {
     pub config: Config,
-    pub kernel: CachedWin32Kernel,
-    pub handles: HashMap<u32, CachedWin32Process>,
+    pub os: OsInstanceArcBox<'static>,
+    pub handles: HashMap<u32, IntoProcessInstanceArcBox<'static>>,
 }
 
 impl Memflow {
@@ -79,27 +67,31 @@ impl Memflow {
         let config = settings.config();
 
         // load connector
-        let inventory = unsafe { ConnectorInventory::scan() };
-        let connector = unsafe {
-            inventory.create_connector(
-                &config.connector,
-                &ConnectorArgs::parse(&config.args).unwrap(),
-            )
-        }?;
-
-        // init kernel
-        let kernel = Kernel::builder(connector).build_default_caches().build()?;
+        let inventory = Inventory::scan();
+        let os = {
+            match inventory
+                .builder()
+                .connector(&config.connector)
+                .args(Args::parse(&config.args)?)
+                .os("win32")
+                .build()
+            {
+                Ok(os) => os,
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        };
 
         Ok(Self {
             config,
-            kernel,
+            os,
             handles: HashMap::new(),
         })
     }
 
     pub fn open_process(&mut self, pid: u32) -> Result<u32> {
-        let proc_info = self.kernel.process_info_pid(pid)?;
-        let proc = Win32Process::with_kernel(self.kernel.clone(), proc_info);
+        let proc = self.os.clone().into_process_by_pid(pid)?;
         self.handles.insert(pid, proc);
         Ok(pid)
     }
@@ -108,20 +100,10 @@ impl Memflow {
         self.handles.remove(&handle);
     }
 
-    pub fn get_process_mut(&mut self, handle: u32) -> Option<&mut CachedWin32Process> {
+    pub fn get_process_mut(
+        &mut self,
+        handle: u32,
+    ) -> Option<&mut IntoProcessInstanceArcBox<'static>> {
         self.handles.get_mut(&handle)
-    }
-
-    // TODO:
-    // maybe it would be nice to have a way to update
-    // the ProcessInfo directly from a Win32Process instead of going through the kernel again.
-    // A alive() function on the process would also be nice
-    pub fn is_process_alive(&mut self, handle: u32) -> bool {
-        // handle = pid
-        if let Ok(proc_info) = self.kernel.process_info_pid(handle) {
-            proc_info.exit_status == EXIT_STATUS_STILL_ACTIVE
-        } else {
-            false
-        }
     }
 }

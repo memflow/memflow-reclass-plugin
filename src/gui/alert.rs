@@ -1,18 +1,10 @@
 use super::support;
 
 use imgui::*;
-use memflow_win32::error::Error;
+use memflow::prelude::v1::Error;
 
 pub fn show_error(title: &str, text: &str, error: Error) {
-    let error_str = error.to_str_pair();
-    if let Some(error_details) = error_str.1 {
-        show_alert(
-            title,
-            &format!("{}:\n{}: {}", text, error_str.0, error_details),
-        )
-    } else {
-        show_alert(title, &format!("{}:\n{}", text, error_str.0))
-    }
+    show_alert(title, &format!("{}:\n{}", text, error.as_str()))
 }
 
 pub fn show_alert(title: &str, text: &str) {

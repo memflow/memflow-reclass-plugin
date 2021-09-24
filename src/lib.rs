@@ -10,23 +10,22 @@ use std::ffi::c_void;
 use std::ptr;
 use std::slice;
 
-use memflow::*;
-use memflow_win32::*;
+use memflow::prelude::v1::*;
 
 #[no_mangle]
 pub extern "C" fn EnumerateProcesses(callback: EnumerateProcessCallback) {
     if let Ok(mut memflow) = unsafe { lock_memflow() } {
-        if let Ok(proc_list) = memflow.kernel.process_info_list() {
+        if let Ok(proc_list) = memflow.os.process_info_list() {
             for proc_info in proc_list.iter() {
-                let mut proc =
-                    Win32Process::with_kernel_ref(&mut memflow.kernel, proc_info.to_owned());
-                if let Ok(main_module) = proc.main_module_info() {
-                    let mut proc_data = EnumerateProcessData::new(
-                        proc_info.pid as ProcessId,
-                        &main_module.name,
-                        &main_module.path,
-                    );
-                    (callback)(&mut proc_data)
+                if let Ok(mut process) = memflow.os.process_by_info(proc_info.to_owned()) {
+                    if let Ok(primary_module) = process.primary_module() {
+                        let mut proc_data = EnumerateProcessData::new(
+                            proc_info.pid as ProcessId,
+                            &primary_module.name,
+                            &primary_module.path,
+                        );
+                        (callback)(&mut proc_data)
+                    }
                 }
             }
         }
@@ -44,43 +43,45 @@ pub extern "C" fn EnumerateRemoteSectionsAndModules(
         if let Some(proc) = memflow.get_process_mut(handle as u32) {
             // iterate sections
             if parse_sections {
-                let mut maps = proc.virt_mem.virt_translation_map();
-                maps.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                if let Some(proc_translate) = proc.as_mut_impl_virtualtranslate() {
+                    let mut maps = proc_translate.virt_page_map_vec(mem::gb(1));
+                    maps.sort_by(|a, b| a.address.partial_cmp(&b.address).unwrap());
 
-                // TODO: sections need drastic improvement
-                let mut section_vaddr = 0;
-                let mut section_size = 0;
-                for (vaddr, size, _paddr) in maps
-                    .iter()
-                    .filter(|(vaddr, _, _)| vaddr.as_u64() < 0xFFFF000000000000u64)
-                {
-                    if section_vaddr + section_size != vaddr.as_u64() {
-                        if section_size > 0 {
-                            let mut section_data = EnumerateRemoteSectionData::new(
-                                section_vaddr as *mut c_void,
-                                section_size as usize,
-                            );
+                    // TODO: sections need drastic improvement
+                    let mut section_vaddr = 0;
+                    let mut section_size = 0;
+                    for map in maps
+                        .iter()
+                        .filter(|map| map.address.to_umem() < 0xFFFF000000000000u64)
+                    {
+                        if section_vaddr + section_size != map.address.to_umem() {
+                            if section_size > 0 {
+                                let mut section_data = EnumerateRemoteSectionData::new(
+                                    section_vaddr as *mut c_void,
+                                    section_size as usize,
+                                );
 
-                            (callback_section)(&mut section_data);
+                                (callback_section)(&mut section_data);
+                            }
+
+                            section_vaddr = map.address.to_umem();
+                            section_size = map.size;
+                        } else {
+                            section_size += map.size;
                         }
-
-                        section_vaddr = vaddr.as_u64();
-                        section_size = *size as u64;
-                    } else {
-                        section_size += *size as u64;
                     }
                 }
-            }
 
-            // iterate modules
-            if let Ok(module_list) = proc.module_list() {
-                for module in module_list.iter() {
-                    let mut module_data = EnumerateRemoteModuleData::new(
-                        module.base.as_u64() as *mut c_void,
-                        module.size as usize,
-                        &module.path,
-                    );
-                    (callback_module)(&mut module_data);
+                // iterate modules
+                if let Ok(module_list) = proc.module_list() {
+                    for module in module_list.iter() {
+                        let mut module_data = EnumerateRemoteModuleData::new(
+                            module.base.to_umem() as *mut c_void,
+                            module.size as usize,
+                            &module.path,
+                        );
+                        (callback_module)(&mut module_data);
+                    }
                 }
             }
         }
@@ -102,7 +103,11 @@ pub extern "C" fn OpenRemoteProcess(id: ProcessId, _desired_access: i32) -> Proc
 #[no_mangle]
 pub extern "C" fn IsProcessValid(handle: ProcessHandle) -> bool {
     if let Ok(mut memflow) = unsafe { lock_memflow() } {
-        memflow.is_process_alive(handle as u32)
+        if let Some(process) = memflow.get_process_mut(handle as u32) {
+            process.state() == ProcessState::Alive
+        } else {
+            false
+        }
     } else {
         false
     }
@@ -126,8 +131,7 @@ pub extern "C" fn ReadRemoteMemory(
     if let Ok(mut memflow) = unsafe { lock_memflow() } {
         if let Some(proc) = memflow.get_process_mut(handle as u32) {
             let slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, size as usize) };
-            proc.virt_mem
-                .virt_read_raw_into((address as u64).wrapping_add(offset as u64).into(), slice)
+            proc.read_raw_into((address as u64).wrapping_add(offset as u64).into(), slice)
                 .is_ok()
         } else {
             false
@@ -148,8 +152,7 @@ pub extern "C" fn WriteRemoteMemory(
     if let Ok(mut memflow) = unsafe { lock_memflow() } {
         if let Some(proc) = memflow.get_process_mut(handle as u32) {
             let slice = unsafe { slice::from_raw_parts_mut(buffer as *mut u8, size as usize) };
-            proc.virt_mem
-                .virt_write_raw((address as u64).wrapping_add(offset as u64).into(), slice)
+            proc.write_raw((address as u64).wrapping_add(offset as u64).into(), slice)
                 .is_ok()
         } else {
             false

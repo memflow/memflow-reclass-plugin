@@ -1,8 +1,7 @@
 use super::support;
 
 use imgui::*;
-use memflow::*;
-use memflow_win32::error::Result;
+use memflow::prelude::v1::*;
 use serde::{Deserialize, Serialize};
 
 // see https://github.com/serde-rs/serde/issues/368
@@ -55,11 +54,16 @@ impl Settings {
 
     /// Saves the current configuration to the {PWD}/Plugins/memflow.toml file.
     pub fn persist(&self) -> Result<()> {
-        let pwd = std::env::current_dir().map_err(|_| "unable to get pwd")?;
-        let configstr =
-            toml::to_string_pretty(&self.config).map_err(|_| "unable to serialize config")?;
-        std::fs::write(pwd.join("Plugins").join("memflow.toml"), &configstr)
-            .map_err(|_| "unable to write config file")?;
+        let pwd = std::env::current_dir().map_err(|_| {
+            Error(ErrorOrigin::Other, ErrorKind::Unknown).log_error("unable to get pwd")
+        })?;
+        let configstr = toml::to_string_pretty(&self.config).map_err(|_| {
+            Error(ErrorOrigin::Other, ErrorKind::Configuration)
+                .log_error("unable to serialize config")
+        })?;
+        std::fs::write(pwd.join("Plugins").join("memflow.toml"), &configstr).map_err(|_| {
+            Error(ErrorOrigin::Other, ErrorKind::NotFound).log_error("unable to write config file")
+        })?;
         Ok(())
     }
 
@@ -71,7 +75,7 @@ impl Settings {
     /// Displays the configuration UI to the user and updates the config
     /// This function blocks until the user clicks the "Ok" button.
     pub fn configure(&mut self) {
-        let inventory = unsafe { ConnectorInventory::scan() };
+        let inventory = Inventory::scan();
         let connectors: Vec<ImString> = inventory
             .available_connectors()
             .iter()
