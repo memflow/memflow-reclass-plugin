@@ -71,17 +71,17 @@ pub extern "C" fn EnumerateRemoteSectionsAndModules(
                         }
                     }
                 }
+            }
 
-                // iterate modules
-                if let Ok(module_list) = proc.module_list() {
-                    for module in module_list.iter() {
-                        let mut module_data = EnumerateRemoteModuleData::new(
-                            module.base.to_umem() as *mut c_void,
-                            module.size as usize,
-                            &module.path,
-                        );
-                        (callback_module)(&mut module_data);
-                    }
+            // iterate modules
+            if let Ok(module_list) = proc.module_list() {
+                for module in module_list.iter() {
+                    let mut module_data = EnumerateRemoteModuleData::new(
+                        module.base.to_umem() as *mut c_void,
+                        module.size as usize,
+                        &module.path,
+                    );
+                    (callback_module)(&mut module_data);
                 }
             }
         }
