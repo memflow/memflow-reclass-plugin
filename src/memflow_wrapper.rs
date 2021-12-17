@@ -5,7 +5,7 @@ use crate::gui::{
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use log::Level;
+use log::LevelFilter;
 
 use memflow::prelude::v1::*;
 
@@ -49,10 +49,14 @@ pub struct Memflow {
 impl Memflow {
     pub fn try_init() -> Result<Self> {
         // setup logging
+        #[cfg(unix)]
         simple_logger::SimpleLogger::new()
-            .with_level(Level::Debug.to_level_filter())
+            .with_level(LevelFilter::Debug)
             .init()
             .ok();
+
+        #[cfg(not(unix))]
+        simple_logging::log_to_file("memflow_reclass.log", LevelFilter::Debug).ok();
 
         // load config file
         let mut settings = Settings::new();
