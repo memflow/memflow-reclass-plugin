@@ -28,6 +28,7 @@ CompanyName = "ko1N, h33p"
 
 [dependencies]
 log = "0.4.8"
+simple-logging = "2.0.2"
 memflow = { git = "https://github.com/memflow/memflow", branch = "next", features = ["plugins"] }
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5"
@@ -37,12 +38,6 @@ glium = "0.29.0"
 imgui = "0.7.0"
 imgui-glium-renderer = "0.7.0"
 imgui-winit-support = "0.7.0"
-
-[target.'cfg(unix)'.dependencies]
-simple_logger = "1.0.1"
-
-[target.'cfg(not(unix))'.dependencies]
-simple-logging = "2.0.2"
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1"

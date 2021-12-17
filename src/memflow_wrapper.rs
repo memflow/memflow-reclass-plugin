@@ -50,16 +50,15 @@ impl Memflow {
     pub fn try_init() -> Result<Self> {
         // setup logging
         #[cfg(unix)]
-        simple_logger::SimpleLogger::new()
-            .with_level(LevelFilter::Debug)
-            .init()
-            .ok();
-
+        simple_logging::log_to(std::io::stdout(), LevelFilter::Info);
         #[cfg(not(unix))]
-        simple_logging::log_to_file("memflow_reclass.log", LevelFilter::Debug).ok();
+        simple_logging::log_to_file("memflow_reclass.log", LevelFilter::Info).ok();
 
-        // load config file
+        // load config file and set initial logging level
         let mut settings = Settings::new();
+        log_level_from_str(settings.config().log_level.as_ref());
+
+        // show configuration dialog
         settings.configure();
         if let Err(err) = settings.persist() {
             alert::show_error(
@@ -69,6 +68,9 @@ impl Memflow {
             );
         }
         let config = settings.config();
+
+        // update logging level after showing the configuration dialog
+        log_level_from_str(config.log_level.as_ref());
 
         // load connector
         let inventory = Inventory::scan();
@@ -109,5 +111,16 @@ impl Memflow {
         handle: u32,
     ) -> Option<&mut IntoProcessInstanceArcBox<'static>> {
         self.handles.get_mut(&handle)
+    }
+}
+
+fn log_level_from_str(log_level: &str) {
+    match log_level.to_lowercase().as_ref() {
+        "error" => log::set_max_level(LevelFilter::Error),
+        "warn" => log::set_max_level(LevelFilter::Warn),
+        "info" => log::set_max_level(LevelFilter::Info),
+        "debug" => log::set_max_level(LevelFilter::Debug),
+        "trace" => log::set_max_level(LevelFilter::Trace),
+        _ => log::set_max_level(LevelFilter::Off),
     }
 }
