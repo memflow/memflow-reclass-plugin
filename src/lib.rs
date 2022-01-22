@@ -44,17 +44,17 @@ pub extern "C" fn EnumerateRemoteSectionsAndModules(
             // iterate sections
             if parse_sections {
                 if let Some(proc_translate) = proc.as_mut_impl_virtualtranslate() {
-                    let mut maps = proc_translate.virt_page_map_vec(mem::gb(1));
-                    maps.sort_by(|a, b| a.address.partial_cmp(&b.address).unwrap());
+                    let mut maps = proc_translate.virt_page_map_vec(mem::gb(1) as imem);
+                    maps.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
                     // TODO: sections need drastic improvement
                     let mut section_vaddr = 0;
                     let mut section_size = 0;
                     for map in maps
                         .iter()
-                        .filter(|map| map.address.to_umem() < 0xFFFF000000000000u64)
+                        .filter(|map| map.0.to_umem() < 0xFFFF000000000000u64)
                     {
-                        if section_vaddr + section_size != map.address.to_umem() {
+                        if section_vaddr + section_size != map.0.to_umem() {
                             if section_size > 0 {
                                 let mut section_data = EnumerateRemoteSectionData::new(
                                     section_vaddr as *mut c_void,
@@ -64,10 +64,10 @@ pub extern "C" fn EnumerateRemoteSectionsAndModules(
                                 (callback_section)(&mut section_data);
                             }
 
-                            section_vaddr = map.address.to_umem();
-                            section_size = map.size;
+                            section_vaddr = map.0.to_umem();
+                            section_size = map.1;
                         } else {
-                            section_size += map.size;
+                            section_size += map.1;
                         }
                     }
                 }

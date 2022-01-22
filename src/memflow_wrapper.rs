@@ -78,7 +78,7 @@ impl Memflow {
             match inventory
                 .builder()
                 .connector(&config.connector)
-                .args(Args::parse(&config.args)?)
+                .args(config.args.parse()?)
                 .os("win32")
                 .build()
             {

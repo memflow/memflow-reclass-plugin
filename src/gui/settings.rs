@@ -93,7 +93,7 @@ impl Settings {
             .iter()
             .enumerate()
             .find(|(_, c)| c.to_str() == self.config.connector)
-            .and_then(|(i, _)| Some(i as i32))
+            .map(|(i, _)| i as i32)
             .unwrap_or_default();
         let mut connector_args = ImString::from(self.config.args.clone());
         let mut log_level_idx = match self.config.log_level.to_lowercase().as_ref() {
@@ -163,7 +163,7 @@ impl Settings {
                             // update config
                             self.config.connector = connectors
                                 .get(connector_idx as usize)
-                                .and_then(|c| Some(c.to_string()))
+                                .map(|c| c.to_string())
                                 .unwrap_or_default();
                             self.config.args = connector_args.to_str().to_owned();
                             self.config.log_level = match log_level_idx {
