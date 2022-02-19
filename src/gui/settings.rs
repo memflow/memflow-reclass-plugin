@@ -1,13 +1,14 @@
 use super::support;
 
 use imgui::*;
-use memflow::*;
-use memflow_win32::error::Result;
+use memflow::prelude::v1::*;
 use serde::{Deserialize, Serialize};
 
 // see https://github.com/serde-rs/serde/issues/368
-#[allow(unused)]
-fn default_as_true() -> bool {
+fn default_string_info() -> String {
+    "info".to_string()
+}
+fn default_bool_true() -> bool {
     true
 }
 
@@ -17,8 +18,11 @@ pub struct Config {
     #[serde(default)]
     pub args: String,
 
+    #[serde(default = "default_string_info")]
+    pub log_level: String,
+
     // TODO: expose caching options (lifetimes, etc)
-    #[serde(default = "default_as_true")]
+    #[serde(default = "default_bool_true")]
     pub parse_sections: bool,
 }
 
@@ -27,6 +31,8 @@ impl Default for Config {
         Config {
             connector: String::new(),
             args: String::new(),
+
+            log_level: "info".to_string(),
 
             parse_sections: false,
         }
@@ -55,11 +61,16 @@ impl Settings {
 
     /// Saves the current configuration to the {PWD}/Plugins/memflow.toml file.
     pub fn persist(&self) -> Result<()> {
-        let pwd = std::env::current_dir().map_err(|_| "unable to get pwd")?;
-        let configstr =
-            toml::to_string_pretty(&self.config).map_err(|_| "unable to serialize config")?;
-        std::fs::write(pwd.join("Plugins").join("memflow.toml"), &configstr)
-            .map_err(|_| "unable to write config file")?;
+        let pwd = std::env::current_dir().map_err(|_| {
+            Error(ErrorOrigin::Other, ErrorKind::Unknown).log_error("unable to get pwd")
+        })?;
+        let configstr = toml::to_string_pretty(&self.config).map_err(|_| {
+            Error(ErrorOrigin::Other, ErrorKind::Configuration)
+                .log_error("unable to serialize config")
+        })?;
+        std::fs::write(pwd.join("Plugins").join("memflow.toml"), &configstr).map_err(|_| {
+            Error(ErrorOrigin::Other, ErrorKind::NotFound).log_error("unable to write config file")
+        })?;
         Ok(())
     }
 
@@ -71,7 +82,7 @@ impl Settings {
     /// Displays the configuration UI to the user and updates the config
     /// This function blocks until the user clicks the "Ok" button.
     pub fn configure(&mut self) {
-        let inventory = unsafe { ConnectorInventory::scan() };
+        let inventory = Inventory::scan();
         let connectors: Vec<ImString> = inventory
             .available_connectors()
             .iter()
@@ -82,13 +93,22 @@ impl Settings {
             .iter()
             .enumerate()
             .find(|(_, c)| c.to_str() == self.config.connector)
-            .and_then(|(i, _)| Some(i as i32))
+            .map(|(i, _)| i as i32)
             .unwrap_or_default();
         let mut connector_args = ImString::from(self.config.args.clone());
+        let mut log_level_idx = match self.config.log_level.to_lowercase().as_ref() {
+            "off" => 0,
+            "error" => 1,
+            "warn" => 2,
+            "info" => 3,
+            "debug" => 4,
+            "trace" => 5,
+            _ => 0,
+        };
         let mut parse_sections = self.config.parse_sections;
 
         {
-            support::show_window("memflow", 400.0, 265.0, |run, ui| {
+            support::show_window("memflow", 400.0, 290.0, |run, ui| {
                 let connectors_ref: Vec<&ImStr> =
                     connectors.iter().map(|c| c.as_ref()).collect::<Vec<_>>();
 
@@ -120,6 +140,19 @@ impl Settings {
                         ui.text(im_str!("Options"));
                         ui.separator();
 
+                        ComboBox::new(im_str!("Log Level")).build_simple_string(
+                            ui,
+                            &mut log_level_idx,
+                            &[
+                                im_str!("Off"),
+                                im_str!("Error"),
+                                im_str!("Warn"),
+                                im_str!("Info"),
+                                im_str!("Debug"),
+                                im_str!("Trace"),
+                            ],
+                        );
+
                         ui.checkbox(im_str!("Parse Sections"), &mut parse_sections);
 
                         // TODO: configure caching
@@ -130,9 +163,19 @@ impl Settings {
                             // update config
                             self.config.connector = connectors
                                 .get(connector_idx as usize)
-                                .and_then(|c| Some(c.to_string()))
+                                .map(|c| c.to_string())
                                 .unwrap_or_default();
                             self.config.args = connector_args.to_str().to_owned();
+                            self.config.log_level = match log_level_idx {
+                                0 => "off",
+                                1 => "error",
+                                2 => "warn",
+                                3 => "info",
+                                4 => "debug",
+                                5 => "trace",
+                                _ => "off",
+                            }
+                            .to_string();
                             self.config.parse_sections = parse_sections;
 
                             // close window

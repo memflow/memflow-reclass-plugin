@@ -5,22 +5,9 @@ use crate::gui::{
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use log::Level;
+use log::LevelFilter;
 
-use memflow::*;
-use memflow_win32::error::{Error, Result};
-use memflow_win32::*;
-
-pub type CachedConnectorInstance =
-    CachedMemoryAccess<'static, ConnectorInstance, TimedCacheValidator>;
-
-pub type CachedTranslate = CachedVirtualTranslate<DirectTranslate, TimedCacheValidator>;
-
-pub type CachedWin32Kernel = memflow_win32::Kernel<CachedConnectorInstance, CachedTranslate>;
-
-pub type CachedWin32Process = memflow_win32::Win32Process<
-    VirtualDMA<CachedConnectorInstance, CachedTranslate, Win32VirtualTranslate>,
->;
+use memflow::prelude::v1::*;
 
 static mut MEMFLOW_INSTANCE: Option<Arc<Mutex<Memflow>>> = None;
 
@@ -36,7 +23,7 @@ pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
                     "Memflow failed to initialize some of its components",
                     err,
                 );
-                return Err(Error::Other("unable to initialize memflow"));
+                return Err(err.log_error("unable to initialize memflow"));
             }
         };
     }
@@ -45,29 +32,33 @@ pub unsafe fn lock_memflow<'a>() -> Result<MutexGuard<'a, Memflow>> {
         if let Ok(memflow) = memflow.lock() {
             Ok(memflow)
         } else {
-            Err(Error::Other("unable to lock memflow"))
+            Err(Error(ErrorOrigin::Other, ErrorKind::NotFound).log_error("unable to lock memflow"))
         }
     } else {
-        Err(Error::Other("memflow is not properly initialized"))
+        Err(Error(ErrorOrigin::Other, ErrorKind::NotFound)
+            .log_error("memflow is not properly initialized"))
     }
 }
 
 pub struct Memflow {
     pub config: Config,
-    pub kernel: CachedWin32Kernel,
-    pub handles: HashMap<u32, CachedWin32Process>,
+    pub os: OsInstanceArcBox<'static>,
+    pub handles: HashMap<u32, IntoProcessInstanceArcBox<'static>>,
 }
 
 impl Memflow {
     pub fn try_init() -> Result<Self> {
         // setup logging
-        simple_logger::SimpleLogger::new()
-            .with_level(Level::Debug.to_level_filter())
-            .init()
-            .ok();
+        #[cfg(unix)]
+        simple_logging::log_to(std::io::stdout(), LevelFilter::Info);
+        #[cfg(not(unix))]
+        simple_logging::log_to_file("memflow_reclass.log", LevelFilter::Info).ok();
 
-        // load config file
+        // load config file and set initial logging level
         let mut settings = Settings::new();
+        log_level_from_str(settings.config().log_level.as_ref());
+
+        // show configuration dialog
         settings.configure();
         if let Err(err) = settings.persist() {
             alert::show_error(
@@ -78,28 +69,35 @@ impl Memflow {
         }
         let config = settings.config();
 
-        // load connector
-        let inventory = unsafe { ConnectorInventory::scan() };
-        let connector = unsafe {
-            inventory.create_connector(
-                &config.connector,
-                &ConnectorArgs::parse(&config.args).unwrap(),
-            )
-        }?;
+        // update logging level after showing the configuration dialog
+        log_level_from_str(config.log_level.as_ref());
 
-        // init kernel
-        let kernel = Kernel::builder(connector).build_default_caches().build()?;
+        // load connector
+        let inventory = Inventory::scan();
+        let os = {
+            match inventory
+                .builder()
+                .connector(&config.connector)
+                .args(config.args.parse()?)
+                .os("win32")
+                .build()
+            {
+                Ok(os) => os,
+                Err(err) => {
+                    return Err(err);
+                }
+            }
+        };
 
         Ok(Self {
             config,
-            kernel,
+            os,
             handles: HashMap::new(),
         })
     }
 
     pub fn open_process(&mut self, pid: u32) -> Result<u32> {
-        let proc_info = self.kernel.process_info_pid(pid)?;
-        let proc = Win32Process::with_kernel(self.kernel.clone(), proc_info);
+        let proc = self.os.clone().into_process_by_pid(pid)?;
         self.handles.insert(pid, proc);
         Ok(pid)
     }
@@ -108,20 +106,21 @@ impl Memflow {
         self.handles.remove(&handle);
     }
 
-    pub fn get_process_mut(&mut self, handle: u32) -> Option<&mut CachedWin32Process> {
+    pub fn get_process_mut(
+        &mut self,
+        handle: u32,
+    ) -> Option<&mut IntoProcessInstanceArcBox<'static>> {
         self.handles.get_mut(&handle)
     }
+}
 
-    // TODO:
-    // maybe it would be nice to have a way to update
-    // the ProcessInfo directly from a Win32Process instead of going through the kernel again.
-    // A alive() function on the process would also be nice
-    pub fn is_process_alive(&mut self, handle: u32) -> bool {
-        // handle = pid
-        if let Ok(proc_info) = self.kernel.process_info_pid(handle) {
-            proc_info.exit_status == EXIT_STATUS_STILL_ACTIVE
-        } else {
-            false
-        }
+fn log_level_from_str(log_level: &str) {
+    match log_level.to_lowercase().as_ref() {
+        "error" => log::set_max_level(LevelFilter::Error),
+        "warn" => log::set_max_level(LevelFilter::Warn),
+        "info" => log::set_max_level(LevelFilter::Info),
+        "debug" => log::set_max_level(LevelFilter::Debug),
+        "trace" => log::set_max_level(LevelFilter::Trace),
+        _ => log::set_max_level(LevelFilter::Off),
     }
 }
