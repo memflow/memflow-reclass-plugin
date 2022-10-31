@@ -106,6 +106,10 @@ impl Memflow {
         self.handles.remove(&handle);
     }
 
+    pub fn get_kernel_mut(&mut self) -> &mut OsInstanceArcBox<'static> {
+        &mut self.os
+    }
+
     pub fn get_process_mut(
         &mut self,
         handle: u32,
