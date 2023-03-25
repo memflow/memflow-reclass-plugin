@@ -68,7 +68,7 @@ impl Settings {
             Error(ErrorOrigin::Other, ErrorKind::Configuration)
                 .log_error("unable to serialize config")
         })?;
-        std::fs::write(pwd.join("Plugins").join("memflow.toml"), &configstr).map_err(|_| {
+        std::fs::write(pwd.join("Plugins").join("memflow.toml"), configstr).map_err(|_| {
             Error(ErrorOrigin::Other, ErrorKind::NotFound).log_error("unable to write config file")
         })?;
         Ok(())
